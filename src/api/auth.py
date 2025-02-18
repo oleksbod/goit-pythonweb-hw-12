@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Security, BackgroundTasks, Request
 from sqlalchemy.orm import Session
-from src.schemas.users import UserCreate, Token, User, UserLogin, RequestEmail 
-from src.services.auth import create_access_token, Hash, get_email_from_token
+from src.schemas.users import UserCreate, Token, User, UserLogin, RequestEmail, PasswordReset, TokenRefreshRequest
+from src.services.auth import create_access_token, Hash, get_email_from_token, create_refresh_token, verify_refresh_token
 from src.services.users import UserService
 from src.database.db import get_db
 
-from src.services.email import send_email
+from src.services.email import send_email, send_reset_password_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -54,7 +54,32 @@ async def login_user(
         )
 
     access_token = await create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    refresh_token = await create_refresh_token(data={"sub": user.email})
+
+    user.refresh_token = refresh_token
+    db.commit()
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+    }
+
+@router.post("/refresh-token", response_model=Token)
+async def new_token(request: TokenRefreshRequest, db: Session = Depends(get_db)):
+    user = await verify_refresh_token(request.refresh_token, db)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
+    new_access_token = await create_access_token(data={"sub": user.email})
+
+    return {
+        "access_token": new_access_token,
+        "refresh_token": request.refresh_token,
+        "token_type": "bearer",
+    }
 
 @router.get("/confirmed_email/{token}")
 async def confirmed_email(token: str, db: Session = Depends(get_db)):
@@ -91,4 +116,41 @@ async def request_email(
             send_email, user.email, user.username, request.base_url
         )
     return {"message": "Перевірте свою електронну пошту для підтвердження"}
+
+
+
+@router.post("/reset_password")
+async def reset_password(
+    body: RequestEmail,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user_service = UserService(db)
+    user = await user_service.get_user_by_email(body.email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Користувача не знайдено"
+        )    
+    
+    background_tasks.add_task(
+        send_reset_password_email, user.email, user.username, request.base_url
+    )
+    return {"message": "Перевірте вашу електронну пошту для скидання пароля"}
+
+@router.post("/change_password")
+async def change_password(
+    body: PasswordReset, db: Session = Depends(get_db)
+):
+    email = await get_email_from_token(body.token)
+    user_service = UserService(db)
+    user = await user_service.get_user_by_email(email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Невірний або прострочений токен"
+        )
+    
+    user.hashed_password = Hash().get_password_hash(body.new_password)
+    await db.commit()
+    return {"message": "Пароль успішно змінено"}
 

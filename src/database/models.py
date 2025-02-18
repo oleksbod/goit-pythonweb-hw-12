@@ -1,6 +1,8 @@
 from datetime import datetime
+from enum import Enum
+from typing import Optional
 
-from sqlalchemy import Column, Integer, String, Boolean, func, Table
+from sqlalchemy import Column, Integer, String, Boolean, func, Enum as SqlEnum
 from sqlalchemy.orm import relationship, mapped_column, Mapped, DeclarativeBase
 from sqlalchemy.sql.schema import ForeignKey, PrimaryKeyConstraint
 from sqlalchemy.sql.sqltypes import DateTime
@@ -13,6 +15,11 @@ class Base(DeclarativeBase):
         "updated_at", DateTime, default=func.now(), onupdate=func.now()
     )
 
+class UserRole(str, Enum):
+    USER = "user"
+    MODERATOR = "moderator"
+    ADMIN = "admin"
+
 class Contact(Base):
     __tablename__ = "contacts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -22,6 +29,7 @@ class Contact(Base):
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
     birthday: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     description: Mapped[str] = mapped_column(String(200), nullable=False)
+    refresh_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     user_id = Column(
         "user_id", ForeignKey("users.id", ondelete="CASCADE"), default=None
@@ -37,4 +45,5 @@ class User(Base):
     hashed_password = Column(String)    
     avatar = Column(String(255), nullable=True)
     confirmed = Column(Boolean, default=False)
+    role = Column(SqlEnum(UserRole), default=UserRole.USER, nullable=False)
     

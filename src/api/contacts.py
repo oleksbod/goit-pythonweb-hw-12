@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.db import get_db
 from src.schemas.contacts import ContactBase, ContactResponse, ContactBirthdayRequest
 from src.schemas.users import User
-from src.services.auth import get_current_user
+from src.services.auth import get_current_user, get_current_moderator_user
 from src.services.contacts import ContactService
 
 router = APIRouter(prefix="/contacts", tags=["contacts"])
@@ -52,7 +52,7 @@ async def update_contact(
 
 
 @router.delete("/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_contact(contact_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+async def remove_contact(contact_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_moderator_user)):
     contact_service = ContactService(db)
     contact = await contact_service.remove_contact(contact_id, user)
     if contact is None:
