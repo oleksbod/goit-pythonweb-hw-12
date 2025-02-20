@@ -16,8 +16,7 @@ class Base(DeclarativeBase):
     )
 
 class UserRole(str, Enum):
-    USER = "user"
-    MODERATOR = "moderator"
+    USER = "user"    
     ADMIN = "admin"
 
 class Contact(Base):

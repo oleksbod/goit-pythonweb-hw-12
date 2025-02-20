@@ -1,3 +1,6 @@
+import redis
+import json
+from redis_lru import RedisLRU
 from datetime import datetime, timedelta, UTC
 from typing import Optional, Literal
 
@@ -14,6 +17,9 @@ from src.conf.config import settings as config
 from src.services.users import UserService
 from src.database.models import User, UserRole
 
+def get_redis():
+    client = redis.StrictRedis(host="localhost", port=6379, password=None)
+    return RedisLRU(client)
 class Hash:
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -58,7 +64,9 @@ async def create_refresh_token(data: dict, expires_delta: Optional[float] = None
     return refresh_token
 
 async def get_current_user(
-    token: HTTPAuthorizationCredentials = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    token: HTTPAuthorizationCredentials = Depends(oauth2_scheme), 
+    db: Session = Depends(get_db), 
+    redisLRU: RedisLRU = Depends(get_redis)
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -76,10 +84,20 @@ async def get_current_user(
             raise credentials_exception
     except JWTError as e:
         raise credentials_exception
+    
+    # Перевіряємо кеш у Redis
+    cached_user = redisLRU.get(f"user:{email}")
+    if cached_user:
+        return json.loads(cached_user)
+
     user_service = UserService(db)
     user = await user_service.get_user_by_email(email)
     if user is None:
         raise credentials_exception
+    
+    # Зберігаємо користувача в Redis
+    redisLRU.set(f"user:{email}", json.dumps(user.__dict__, default=str), ttl=86400)
+
     return user
 
 async def verify_refresh_token(refresh_token: str, db: Session):
@@ -106,11 +124,6 @@ async def verify_refresh_token(refresh_token: str, db: Session):
         return user
     except JWTError:
         return None
-
-def get_current_moderator_user(current_user: User = Depends(get_current_user)):
-    if current_user.role not in [UserRole.MODERATOR, UserRole.ADMIN]:
-        raise HTTPException(status_code=403, detail="Недостатньо прав доступу")
-    return current_user
 
 def get_current_admin_user(current_user: User = Depends(get_current_user)):
     if current_user.role != UserRole.ADMIN:

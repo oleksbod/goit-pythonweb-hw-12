@@ -26,7 +26,7 @@ TestingSessionLocal = async_sessionmaker(
 test_user = {
     "username": "deadpool",
     "email": "deadpool@example.com",
-    "password": "12345678",
+    "password": "12345678"   
 }
 
 @pytest.fixture(scope="module", autouse=True)
