@@ -113,7 +113,7 @@ async def remove_contact(contact_id: int, db: AsyncSession = Depends(get_db), us
         )
     return
 
-@router.get("/search", response_model=List[ContactResponse])
+@router.get("/search/{search_query}", response_model=List[ContactResponse])
 async def search_contacts(
     text: str, skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
 ):    
