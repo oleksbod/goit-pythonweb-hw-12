@@ -6,7 +6,7 @@ from src.services.auth import create_access_token
 from tests.conftest import TestingSessionLocal
 from datetime import datetime, timedelta
 
-contact_data = {"first_name": "John", "role":"user", "last_name": "Doe", "email": "john.doe@example.com", "phone": "1234567890", "birthday": datetime(2010,1,1).isoformat(), "description":"Test contact"}
+contact_data = {"first_name": "John", "last_name": "Doe", "email": "john.doe@example.com", "phone": "1234567890", "birthday": datetime(2010,1,1).isoformat(), "description":"Test contact"}
 
 @pytest.mark.asyncio
 async def test_create_contact(client: TestClient, get_token: str):   

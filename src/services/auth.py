@@ -16,6 +16,7 @@ from src.database.db import get_db
 from src.conf.config import settings as config
 from src.services.users import UserService
 from src.database.models import User, UserRole
+from pydantic import BaseModel
 
 def get_redis():
     client = redis.StrictRedis(host="localhost", port=6379, password=None)
@@ -66,7 +67,7 @@ async def create_refresh_token(data: dict, expires_delta: Optional[float] = None
 async def get_current_user(
     token: HTTPAuthorizationCredentials = Depends(oauth2_scheme), 
     db: Session = Depends(get_db), 
-    redisLRU: RedisLRU = Depends(get_redis)
+    #redisLRU: RedisLRU = Depends(get_redis)
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -86,17 +87,19 @@ async def get_current_user(
         raise credentials_exception
     
     # Перевіряємо кеш у Redis
-    cached_user = redisLRU.get(f"user:{email}")
-    if cached_user:
-        return json.loads(cached_user)
+    #cached_user = redisLRU.get(f"user:{email}")
+    #if cached_user:
+    #    user_data = json.loads(cached_user)
+    #    user = User(**user_data)  # Create an SQLAlchemy object
+    #    return user
 
     user_service = UserService(db)
     user = await user_service.get_user_by_email(email)
     if user is None:
-        raise credentials_exception
-    
-    # Зберігаємо користувача в Redis
-    redisLRU.set(f"user:{email}", json.dumps(user.__dict__, default=str), ttl=86400)
+        raise credentials_exception    
+
+    #user_data = UserSchema.model_dump(user)
+    #redisLRU.set(f"user:{email}", json.dumps(user_data), ttl=86400)
 
     return user
 
